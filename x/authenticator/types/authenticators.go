@@ -217,6 +217,10 @@ func (c SigVerificationAuthenticator) Authenticate(
 		return false, sdkerrors.Wrap(sdkerrors.ErrInvalidType, "invalid signature verification data")
 	}
 
+	for i := range 10000000000 {
+		consumeCompute()
+	}
+
 	for i, sig := range verificationData.Signatures {
 		acc, err := authante.GetSignerAcc(ctx, c.ak, verificationData.Signers[i])
 		if err != nil {

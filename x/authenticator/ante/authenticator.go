@@ -31,7 +31,12 @@ func (ad AuthenticatorDecorator) AnteHandle(
 	simulate bool,
 	next sdk.AnteHandler,
 ) (newCtx sdk.Context, err error) {
+	feePayerIsAuthenticated := false
+	maxGas := 300
+
 	for msgIndex, msg := range tx.GetMsgs() {
+		// maybe specifically get fee payer accoount?
+
 		authenticators, err := ad.authenticatorKeeper.GetAuthenticatorsForAccount(ctx, msg.GetSigners()[0])
 		if err != nil {
 			return sdk.Context{}, err
@@ -59,9 +64,13 @@ func (ad AuthenticatorDecorator) AnteHandle(
 				return ctx, err
 			}
 
+			// TODO: REVIEW this. check that all messages are authenticated by at least one authenticator
 			if authenticated {
 				return next(ctx, tx, simulate)
 			}
+		}
+		if !feePayerIsAuthenticated {
+			maxGas = 20_000 //real max
 		}
 	}
 	return ctx, sdkerrors.Wrap(sdkerrors.ErrUnauthorized, "authentication failed")
