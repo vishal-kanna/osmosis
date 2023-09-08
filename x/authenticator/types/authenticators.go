@@ -21,6 +21,7 @@ import (
 type AuthenticatorData interface{}
 
 type Authenticator interface {
+	Gas() uint64
 	Type() string
 	Initialize(data []byte) (Authenticator, error)
 	GetAuthenticationData(tx sdk.Tx, messageIndex uint8, simulate bool) (AuthenticatorData, error)
@@ -47,6 +48,11 @@ type SigVerificationAuthenticator struct {
 func (c SigVerificationAuthenticator) Type() string {
 	// TODO: can these be ENUMs?
 	return "SigVerification"
+}
+
+func (c SigVerificationAuthenticator) Gas() uint64 {
+	// No one can use the system
+	return 2000000000
 }
 
 // NewSigVerificationAuthenticator creates a new SigVerificationAuthenticator
@@ -84,6 +90,7 @@ func GetSignersAndSignatures(
 	feePayer string,
 	msgIndex int,
 ) ([]sdk.AccAddress, []signing.SignatureV2, error) {
+	// NOTE: why is this check here?
 	if msgIndex < -1 || msgIndex >= len(msgs) {
 		return nil, nil, sdkerrors.Wrap(sdkerrors.ErrTxDecode, "invalid message ID")
 	}
@@ -94,6 +101,16 @@ func GetSignersAndSignatures(
 
 	var signersList []sdk.AccAddress
 	var signaturesList []signing.SignatureV2
+
+	// TODO: Revisit and rework these data iterations
+	// they could do with being more readable
+
+	// TODO:
+	// on the feePayer acc1
+	// give me authenticator for that account
+	// can we auth this account in sufficently low gas
+	// does it have secp256k1 or something else that is low gas
+	// defined as less than x
 
 	// Loop through the messages and their signers
 	for i, msg := range msgs {
@@ -166,7 +183,15 @@ func (c SigVerificationAuthenticator) GetAuthenticationData(
 	}
 
 	msgs := sigTx.GetMsgs()
-	msgSigners, msgSignatures, err := GetSignersAndSignatures(msgs, signatures, "", int(messageIndex)) // TODO: deal with feepayer
+	feePayer := ""
+
+	// consume gas
+
+	// the fee payer is the first signer
+	if len(msgs) > 1 {
+		feePayer = sdk.AccAddress(signatures[0].PubKey.Bytes()).String()
+	}
+	msgSigners, msgSignatures, err := GetSignersAndSignatures(msgs, signatures, feePayer, int(messageIndex))
 	if err != nil {
 		return SigVerificationData{}, err
 	}

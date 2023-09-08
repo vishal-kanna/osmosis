@@ -32,7 +32,6 @@ func (ad AuthenticatorDecorator) AnteHandle(
 	next sdk.AnteHandler,
 ) (newCtx sdk.Context, err error) {
 	for msgIndex, msg := range tx.GetMsgs() {
-		// Todo: Replace getting the authenticator for something like this:
 		authenticators, err := ad.authenticatorKeeper.GetAuthenticatorsForAccount(ctx, msg.GetSigners()[0])
 		if err != nil {
 			return sdk.Context{}, err
@@ -51,6 +50,8 @@ func (ad AuthenticatorDecorator) AnteHandle(
 			if err != nil {
 				return ctx, err
 			}
+
+			// NOTE: Consume Gas here?
 
 			// Authenticate the message
 			authenticated, err := authenticator.Authenticate(ctx, msg, authData)

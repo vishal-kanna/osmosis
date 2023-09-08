@@ -54,15 +54,17 @@ func NewAnteHandler(
 		ante.NewValidateBasicDecorator(),
 		ante.TxTimeoutHeightDecorator{},
 		ante.NewValidateMemoDecorator(accountKeeper),
+		//authante.NewAuthenticatorDecorator(authenticatorKeeper),
 		ante.NewConsumeGasForTxSizeDecorator(accountKeeper),
+		// fee taker ante handler
 		deductFeeDecorator,
 		// This decorator will have to be replaced with our won decorator. For now, replacing it with a hacked version to test key rotation
 		authante.NewSetPubKeyDecorator(accountKeeper), // SetPubKeyDecorator must be called before all signature verification decorators
 		ante.NewValidateSigCountDecorator(accountKeeper),
 		ante.NewSigGasConsumeDecorator(accountKeeper, sigGasConsumer),
+		authante.NewSigGasConsumeDecorator(accountKeeper, authenticatorKeeper, sigGasConsumer),
 		// Our authenticator decorator
 		authante.NewAuthenticatorDecorator(authenticatorKeeper),
 		ante.NewIncrementSequenceDecorator(accountKeeper),
-		ibcante.NewAnteDecorator(channelKeeper),
-	)
+		ibcante.NewAnteDecorator(channelKeeper))
 }
