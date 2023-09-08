@@ -45,12 +45,12 @@ type SigVerificationAuthenticator struct {
 	PubKey  cryptotypes.PubKey
 }
 
-func (c SigVerificationAuthenticator) Type() string {
+func (sva SigVerificationAuthenticator) Type() string {
 	// TODO: can these be ENUMs?
 	return "SigVerification"
 }
 
-func (c SigVerificationAuthenticator) Gas() uint64 {
+func (sva SigVerificationAuthenticator) Gas() uint64 {
 	// No one can use the system
 	return 2000000000
 }
@@ -67,12 +67,12 @@ func NewSigVerificationAuthenticator(
 }
 
 // Initialize TODO: Document
-func (c SigVerificationAuthenticator) Initialize(data []byte) (Authenticator, error) {
+func (sva SigVerificationAuthenticator) Initialize(data []byte) (Authenticator, error) {
 	if len(data) != secp256k1.PubKeySize {
-		c.PubKey = nil
+		sva.PubKey = nil
 	}
-	c.PubKey = &secp256k1.PubKey{Key: data}
-	return c, nil
+	sva.PubKey = &secp256k1.PubKey{Key: data}
+	return sva, nil
 }
 
 // SigVerificationData is used to package all the signature data and the tx
@@ -164,7 +164,7 @@ func GetSignersAndSignatures(
 // GetAuthenticationData parses the signers and signatures from a transactiom
 // then returns a indexed list of both signers and signatures
 // NOTE: position in the array is used to associate the signer and signature
-func (c SigVerificationAuthenticator) GetAuthenticationData(
+func (sva SigVerificationAuthenticator) GetAuthenticationData(
 	tx sdk.Tx,
 	messageIndex uint8,
 	simulate bool,
@@ -207,7 +207,7 @@ func (c SigVerificationAuthenticator) GetAuthenticationData(
 
 // Authenticate takes a SignaturesVerificationData struct and validates
 // each signer and signature using Secp256k1 signature verification
-func (c SigVerificationAuthenticator) Authenticate(
+func (sva SigVerificationAuthenticator) Authenticate(
 	ctx sdk.Context,
 	msg sdk.Msg,
 	authenticationData AuthenticatorData,
@@ -216,25 +216,29 @@ func (c SigVerificationAuthenticator) Authenticate(
 	if !ok {
 		return false, sdkerrors.Wrap(sdkerrors.ErrInvalidType, "invalid signature verification data")
 	}
-
-	for i := range 10000000000 {
-		consumeCompute()
-	}
-
+	
 	for i, sig := range verificationData.Signatures {
-		acc, err := authante.GetSignerAcc(ctx, c.ak, verificationData.Signers[i])
+		acc, err := authante.GetSignerAcc(ctx, sva.ak, verificationData.Signers[i])
 		if err != nil {
 			return false, err
 		}
 
 		// retrieve pubkey
-		pubKey := c.PubKey
+		pubKey := sva.PubKey
 		if pubKey == nil {
 			// Having a default here keeps this authenticator stateless,
 			// that way we don't have to create specific authenticators with the pubkey of each existing account
 
 			pubKey = acc.GetPubKey() // TODO: do we want this default?
 		}
+
+		// consume gas
+		params := sva.ak.GetParams(ctx)
+		err = authante.DefaultSigVerificationGasConsumer(ctx.GasMeter(), sig, params)
+		if err != nil {
+			return false, err
+		}
+
 		if !verificationData.Simulate && pubKey == nil {
 			return false, sdkerrors.Wrap(sdkerrors.ErrInvalidPubKey, "pubkey on not set on account or authenticator")
 		}
@@ -262,7 +266,7 @@ func (c SigVerificationAuthenticator) Authenticate(
 
 		// no need to verify signatures on recheck tx
 		if !verificationData.Simulate && !ctx.IsReCheckTx() {
-			err := authsigning.VerifySignature(pubKey, signerData, sig.Data, c.Handler, verificationData.Tx)
+			err := authsigning.VerifySignature(pubKey, signerData, sig.Data, sva.Handler, verificationData.Tx)
 			if err != nil {
 				if authante.OnlyLegacyAminoSigners(sig.Data) {
 					// If all signers are using SIGN_MODE_LEGACY_AMINO, we rely on VerifySignature to check account sequence number,
@@ -288,7 +292,7 @@ func (c SigVerificationAuthenticator) Authenticate(
 	return true, nil
 }
 
-func (c SigVerificationAuthenticator) ConfirmExecution(ctx sdk.Context, msg sdk.Msg, authenticated bool, authenticationData AuthenticatorData) bool {
+func (sva SigVerificationAuthenticator) ConfirmExecution(ctx sdk.Context, msg sdk.Msg, authenticated bool, authenticationData AuthenticatorData) bool {
 	// To be executed in the post handler
 	return true
 }

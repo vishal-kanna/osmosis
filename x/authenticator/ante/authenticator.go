@@ -34,6 +34,8 @@ func (ad AuthenticatorDecorator) AnteHandle(
 	feePayerIsAuthenticated := false
 	maxGas := 300
 
+	// fee payer = first signer of first message
+
 	for msgIndex, msg := range tx.GetMsgs() {
 		// maybe specifically get fee payer accoount?
 
