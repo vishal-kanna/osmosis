@@ -25,8 +25,8 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 var _ types.MsgServer = msgServer{}
 
 // AddAuthenticator allows the addition of various types of authenticators to an account.
-// This method serves as a versatile function for adding diverse authenticator types
-// to an account, making it highly adaptable for different use cases.
+// This method serves as a function for adding different authenticator types
+// to an account, making it adaptable for different use cases.
 func (m msgServer) AddAuthenticator(
 	goCtx context.Context,
 	msg *types.MsgAddAuthenticator,

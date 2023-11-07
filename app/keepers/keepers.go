@@ -203,41 +203,6 @@ func (appKeepers *AppKeepers) InitNormalKeepers(
 	)
 	appKeepers.BankKeeper = &bankKeeper
 
-	// Initialize authenticators
-	appKeepers.AuthenticatorManager = authenticator.NewAuthenticatorManager()
-	appKeepers.AuthenticatorManager.InitializeAuthenticators([]iface.Authenticator{
-		authenticator.NewSignatureVerificationAuthenticator(appKeepers.AccountKeeper, encodingConfig.TxConfig.SignModeHandler()), // default
-		authenticator.NewAllOfAuthenticator(appKeepers.AuthenticatorManager),
-		authenticator.NewAnyOfAuthenticator(appKeepers.AuthenticatorManager),
-		authenticator.NewPassKeyAuthenticator(appKeepers.AccountKeeper, encodingConfig.TxConfig.SignModeHandler()),
-		authenticator.NewSpendLimitAuthenticator(
-			appKeepers.keys[authenticatortypes.AuthenticatorStoreKey],
-			"uosmo",
-			authenticator.AbsoluteValue,
-			appKeepers.BankKeeper, appKeepers.PoolManagerKeeper, appKeepers.TwapKeeper),
-	})
-	appKeepers.AuthenticatorManager.SetDefaultAuthenticatorIndex(0)
-
-	authenticatorKeeper := authenticatorkeeper.NewKeeper(
-		appCodec,
-		appKeepers.keys[authenticatortypes.ManagerStoreKey],
-		appKeepers.keys[authenticatortypes.AuthenticatorStoreKey],
-		appKeepers.GetSubspace(authenticatortypes.ModuleName),
-		appKeepers.AuthenticatorManager,
-	)
-	appKeepers.AuthenticatorKeeper = &authenticatorKeeper
-
-	authzKeeper := NewKeeperWrapper(
-		authzkeeper.NewKeeper(
-			appKeepers.keys[authzkeeper.StoreKey],
-			appCodec,
-			bApp.MsgServiceRouter(),
-		),
-		appKeepers.AuthenticatorKeeper,
-		appKeepers.AuthenticatorKeeper.TransientStore,
-	)
-	appKeepers.AuthzKeeper = authzKeeper
-
 	stakingKeeper := stakingkeeper.NewKeeper(
 		appCodec,
 		appKeepers.keys[stakingtypes.StoreKey],
@@ -394,6 +359,42 @@ func (appKeepers *AppKeepers) InitNormalKeepers(
 		appKeepers.tkeys[twaptypes.TransientStoreKey],
 		appKeepers.GetSubspace(twaptypes.ModuleName),
 		appKeepers.PoolManagerKeeper)
+
+	// Initialize authenticators
+	appKeepers.AuthenticatorManager = authenticator.NewAuthenticatorManager()
+	appKeepers.AuthenticatorManager.InitializeAuthenticators([]iface.Authenticator{
+		authenticator.NewSignatureVerificationAuthenticator(appKeepers.AccountKeeper, encodingConfig.TxConfig.SignModeHandler()), // default
+		authenticator.NewAllOfAuthenticator(appKeepers.AuthenticatorManager),
+		authenticator.NewAnyOfAuthenticator(appKeepers.AuthenticatorManager),
+		authenticator.NewPassKeyAuthenticator(appKeepers.AccountKeeper, encodingConfig.TxConfig.SignModeHandler()),
+		authenticator.NewMessageFilterAuthenticator(),
+		authenticator.NewSpendLimitAuthenticator(
+			appKeepers.keys[authenticatortypes.AuthenticatorStoreKey],
+			"uosmo",
+			authenticator.Twap,
+			appKeepers.BankKeeper, appKeepers.PoolManagerKeeper, appKeepers.TwapKeeper),
+	})
+	appKeepers.AuthenticatorManager.SetDefaultAuthenticatorIndex(0)
+
+	authenticatorKeeper := authenticatorkeeper.NewKeeper(
+		appCodec,
+		appKeepers.keys[authenticatortypes.ManagerStoreKey],
+		appKeepers.keys[authenticatortypes.AuthenticatorStoreKey],
+		appKeepers.GetSubspace(authenticatortypes.ModuleName),
+		appKeepers.AuthenticatorManager,
+	)
+	appKeepers.AuthenticatorKeeper = &authenticatorKeeper
+
+	authzKeeper := NewKeeperWrapper(
+		authzkeeper.NewKeeper(
+			appKeepers.keys[authzkeeper.StoreKey],
+			appCodec,
+			bApp.MsgServiceRouter(),
+		),
+		appKeepers.AuthenticatorKeeper,
+		appKeepers.AuthenticatorKeeper.TransientStore,
+	)
+	appKeepers.AuthzKeeper = authzKeeper
 
 	appKeepers.EpochsKeeper = epochskeeper.NewKeeper(appKeepers.keys[epochstypes.StoreKey])
 

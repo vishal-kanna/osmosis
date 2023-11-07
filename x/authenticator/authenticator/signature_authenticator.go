@@ -116,7 +116,7 @@ func (sva SignatureVerificationAuthenticator) Authenticate(ctx sdk.Context, acco
 	params := sva.ak.GetParams(ctx)
 	for _, sig := range verificationData.Signatures {
 		err := authante.DefaultSigVerificationGasConsumer(ctx.GasMeter(), sig, params)
-		if err != nil {
+		if !verificationData.Simulate && err != nil {
 			return iface.Rejected("couldn't get gas consumer", err)
 		}
 	}

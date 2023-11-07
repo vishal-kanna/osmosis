@@ -47,7 +47,7 @@ type SpendLimitAuthenticator struct {
 	twapKeeper        *twap.Keeper
 	priceStrategy     PriceStrategy
 
-	allowedDelta osmomath.Uint
+	allowedDelta osmomath.Int
 	periodType   PeriodType
 }
 
@@ -74,7 +74,7 @@ func NewSpendLimitAuthenticator(storeKey sdk.StoreKey, quoteDenom string, priceS
 }
 
 type InitData struct {
-	AllowedDelta uint64     `json:"allowed"`
+	AllowedDelta int64      `json:"allowed"`
 	PeriodType   PeriodType `json:"period"`
 }
 
@@ -91,7 +91,7 @@ func (sla SpendLimitAuthenticator) Initialize(data []byte) (iface.Authenticator,
 	if err := json.Unmarshal(data, &initData); err != nil {
 		return nil, sdkerrors.Wrap(err, "failed to unmarshal initialization data")
 	}
-	sla.allowedDelta = sdk.NewUint(initData.AllowedDelta)
+	sla.allowedDelta = sdk.NewInt(initData.AllowedDelta)
 	if sla.allowedDelta.IsZero() {
 		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "allowed delta must be positive")
 	}
@@ -107,8 +107,8 @@ func (sla SpendLimitAuthenticator) GetAuthenticationData(ctx sdk.Context, tx sdk
 }
 
 func (sla SpendLimitAuthenticator) Authenticate(ctx sdk.Context, account sdk.AccAddress, msg sdk.Msg, authenticationData iface.AuthenticatorData) iface.AuthenticationResult {
-	// We never authenticate ourselves. We just  authentication after the fact if the balances changed too much
-	return iface.NotAuthenticated()
+	// We never authenticate ourselves. We just authenticate after the fact if the balances changed too much
+	return iface.Authenticated()
 }
 
 func (sla SpendLimitAuthenticator) Track(ctx sdk.Context, account sdk.AccAddress, msg sdk.Msg) error {
@@ -139,22 +139,27 @@ func (sla SpendLimitAuthenticator) ConfirmExecution(ctx sdk.Context, account sdk
 	totalPrevValue := osmomath.NewInt(0)
 	totalCurrentValue := osmomath.NewInt(0)
 
+	// TODO: replace with smart contract interactions
 	for _, coin := range prevBalances {
+		//price := osmomath.NewDec(1)
+		// ignore errors here as we don't care about
 		price, err := sla.getPriceInQuoteDenom(ctx, coin)
-		if err != nil {
-			// ToDO: what do we want to do if we can't determine the price of an asset?
-			return iface.Block(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "can't find price for %s", coin.Denom))
+		if err == nil {
+			// TODO: what do we want to do if we can't determine the price of an asset?
+			//return iface.Block(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "can't find price for %s", coin.Denom))
+			totalPrevValue = totalPrevValue.Add(price.MulInt(coin.Amount).RoundInt())
 		}
-		totalPrevValue = totalPrevValue.Add(price.MulInt(coin.Amount).RoundInt())
 	}
 
 	for _, coin := range currentBalances {
+		// price := osmomath.NewDec(51)
+		// ignore errors here as we don't care about
 		price, err := sla.getPriceInQuoteDenom(ctx, coin)
-		if err != nil {
-			// ToDO: what do we want to do if we can't determine the price of an asset?
-			return iface.Block(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "can't find price for %s", coin.Denom))
+		if err == nil {
+			// TODO: what do we want to do if we can't determine the price of an asset?
+			//return iface.Block(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "can't find price for %s", coin.Denom))
+			totalCurrentValue = totalCurrentValue.Add(price.MulInt(coin.Amount).RoundInt())
 		}
-		totalCurrentValue = totalCurrentValue.Add(price.MulInt(coin.Amount).RoundInt())
 	}
 
 	delta := totalPrevValue.Sub(totalCurrentValue)
@@ -162,7 +167,9 @@ func (sla SpendLimitAuthenticator) ConfirmExecution(ctx sdk.Context, account sdk
 	// Get the total spent so far in the current period
 	spentSoFar := sla.GetSpentInPeriod(account, ctx.BlockTime())
 
-	if delta.Add(spentSoFar).Int64() > int64(sla.allowedDelta.Uint64()) {
+	// TODO: int overflow here due to bigInt vs Int64, use osmomath
+	// TODO: we multiply here to allow for osmo => uosmo
+	if delta.Add(spentSoFar).GT(sla.allowedDelta.Mul(osmomath.NewInt(1000000))) {
 		return iface.Block(sdkerrors.Wrapf(sdkerrors.ErrUnauthorized, "spend limit exceeded"))
 	}
 
@@ -178,7 +185,7 @@ func (sla SpendLimitAuthenticator) OnAuthenticatorAdded(ctx sdk.Context, account
 	if err := json.Unmarshal(data, &initData); err != nil {
 		return sdkerrors.Wrap(err, "failed to unmarshal initialization data")
 	}
-	if sdk.NewUint(initData.AllowedDelta).IsZero() {
+	if sdk.NewInt(initData.AllowedDelta).IsZero() {
 		return sdkerrors.Wrapf(sdkerrors.ErrInvalidRequest, "allowed delta must be positive")
 	}
 	if !(initData.PeriodType == Day || initData.PeriodType == Week || initData.PeriodType == Month || initData.PeriodType == Year) {
