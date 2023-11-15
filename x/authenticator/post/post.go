@@ -1,6 +1,8 @@
 package post
 
 import (
+	"fmt"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
@@ -31,6 +33,8 @@ func (ad AuthenticatorDecorator) AnteHandle(
 	// state of the authenticators. If a post handler returns an error, then
 	// all state changes are reverted anyway
 	ad.authenticatorKeeper.TransientStore.WriteInto(ctx)
+	fmt.Println("post handler pre gas org:", ctx.GasMeter().GasConsumed())
+	fmt.Println("post handler pre transient gas org:", ad.authenticatorKeeper.TransientStore.GetTransientContext().GasMeter().GasConsumed())
 
 	for msgIndex, msg := range tx.GetMsgs() {
 		account, err := utils.GetAccount(msg)
@@ -57,6 +61,8 @@ func (ad AuthenticatorDecorator) AnteHandle(
 			}
 		}
 	}
+	fmt.Println("post handler gas org:", ctx.GasMeter().GasConsumed())
+	fmt.Println("post handler transient gas org:", ad.authenticatorKeeper.TransientStore.GetTransientContext().GasMeter().GasConsumed())
 
 	return next(ctx, tx, simulate)
 }

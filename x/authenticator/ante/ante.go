@@ -53,6 +53,7 @@ func (ad AuthenticatorDecorator) AnteHandle(
 	maximumUnauthenticatedGasParam := ad.authenticatorKeeper.GetParams(ctx)
 	payerGasMeter := sdk.NewGasMeter(maximumUnauthenticatedGasParam.MaximumUnauthenticatedGas)
 	ctx = ctx.WithGasMeter(payerGasMeter)
+	fmt.Println("gas start", ctx.GasMeter().GasConsumed())
 
 	feeTx, ok := tx.(sdk.FeeTx)
 	if !ok {
@@ -145,9 +146,11 @@ func (ad AuthenticatorDecorator) AnteHandle(
 				// Once the fee payer is authenticated, we can set the gas limit to its original value
 				if !feePayerAuthenticated && account.Equals(feePayer) {
 					originalGasMeter.ConsumeGas(payerGasMeter.GasConsumed(), "fee payer gas")
+					fmt.Println("gas consumed before reset", ctx.GasMeter().GasConsumed())
 					// Reset this for both contexts
 					cacheCtx = ad.authenticatorKeeper.TransientStore.GetTransientContextWithGasMeter(originalGasMeter)
 					ctx = ctx.WithGasMeter(originalGasMeter)
+					fmt.Println("gas consumed with originalGasMeter", ctx.GasMeter().GasConsumed())
 					feePayerAuthenticated = true
 				}
 				break

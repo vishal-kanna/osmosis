@@ -856,3 +856,101 @@ func (s *AuthenticatorSuite) TestSpendWithinLimitWithAuthzTableTest() {
 		})
 	}
 }
+
+func (s *AuthenticatorSuite) TestAuthenticatorAddingAllOfAuthenticator() {
+	// Initialize an account
+	accountAddr := sdk.AccAddress(s.PrivKeys[0].PubKey().Address())
+
+	fmt.Println("Added Auth")
+	addAuthenticatorMsg := &authenticatortypes.MsgAddAuthenticator{
+		Type:   "SignatureVerificationAuthenticator",
+		Data:   s.PrivKeys[0].PubKey().Bytes(),
+		Sender: accountAddr.String(),
+	}
+
+	// Store the grant
+	_, err := s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[0]}, addAuthenticatorMsg)
+	s.Require().NoError(err)
+
+	fmt.Println("First Send")
+	amountToSend := int64(500)
+	coins := sdk.NewCoins(sdk.NewInt64Coin(sdk.DefaultBondDenom, amountToSend))
+	msg := &banktypes.MsgSend{
+		FromAddress: sdk.MustBech32ifyAddressBytes("osmo", s.Account.GetAddress()),
+		ToAddress:   sdk.MustBech32ifyAddressBytes("osmo", s.PrivKeys[1].PubKey().Address()),
+		Amount:      coins,
+	}
+
+	_, err = s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[0]}, msg)
+	s.Require().NoError(err)
+
+	//accountAddr2 := sdk.AccAddress(s.PrivKeys[1].PubKey().Address())
+
+	fmt.Println("Second send")
+	// initialise spend limit authenticator
+	initDataPrivKey0 := authenticator.InitializationData{
+		AuthenticatorType: "SignatureVerificationAuthenticator",
+		Data:              s.PrivKeys[1].PubKey().Bytes(),
+	}
+	initDataSpendLimit := authenticator.InitializationData{
+		AuthenticatorType: "SpendLimitAuthenticator",
+		Data:              []byte(`{"allowed": 10000, "period": "day"}`),
+	}
+	initDataMessageFilter := authenticator.InitializationData{
+		AuthenticatorType: "MessageFilterAuthenticator",
+		Data:              []byte(`{"type":"/osmosis.poolmanager.v1beta1.MsgSwapExactAmountOut","value":{"token_in_max_amount":"10000"}}`),
+	}
+	compositeAuthData := []authenticator.InitializationData{
+		initDataPrivKey0,
+		initDataSpendLimit,
+		initDataMessageFilter,
+	}
+
+	dataAllOf, err := json.Marshal(compositeAuthData)
+	addAllOfAuthenticatorMsg := &authenticatortypes.MsgAddAuthenticator{
+		Type:   "AllOfAuthenticator",
+		Data:   dataAllOf,
+		Sender: accountAddr.String(),
+	}
+	_, err = s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[0]}, addAllOfAuthenticatorMsg)
+	s.Require().NoError(err)
+
+	fmt.Println("Seconnd Send")
+	msg = &banktypes.MsgSend{
+		FromAddress: sdk.MustBech32ifyAddressBytes("osmo", s.Account.GetAddress()),
+		ToAddress:   sdk.MustBech32ifyAddressBytes("osmo", s.PrivKeys[1].PubKey().Address()),
+		Amount:      coins,
+	}
+	_, err = s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[0]}, msg)
+	s.Require().NoError(err)
+
+	_, err = s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[0]}, addAllOfAuthenticatorMsg)
+	s.Require().NoError(err)
+
+	fmt.Println("Third Send")
+	msg = &banktypes.MsgSend{
+		FromAddress: sdk.MustBech32ifyAddressBytes("osmo", s.Account.GetAddress()),
+		ToAddress:   sdk.MustBech32ifyAddressBytes("osmo", s.PrivKeys[1].PubKey().Address()),
+		Amount:      coins,
+	}
+	_, err = s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[0]}, msg)
+	s.Require().NoError(err)
+
+	addAuthenticatorMsg = &authenticatortypes.MsgAddAuthenticator{
+		Type:   "SignatureVerificationAuthenticator",
+		Data:   s.PrivKeys[1].PubKey().Bytes(),
+		Sender: accountAddr.String(),
+	}
+
+	_, err = s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[0]}, addAuthenticatorMsg)
+	s.Require().NoError(err)
+
+	fmt.Println("Fourth Send")
+	msg = &banktypes.MsgSend{
+		FromAddress: sdk.MustBech32ifyAddressBytes("osmo", s.Account.GetAddress()),
+		ToAddress:   sdk.MustBech32ifyAddressBytes("osmo", s.PrivKeys[1].PubKey().Address()),
+		Amount:      coins,
+	}
+	_, err = s.chainA.SendMsgsFromPrivKeys(pks{s.PrivKeys[1]}, msg)
+	s.Require().NoError(err)
+}
